@@ -1,0 +1,225 @@
+--Query
+
+--Them hoc phan
+insert into subject(subject_id, name, credit_number, percentage)
+values('SUBJ0006', 'Database Lab', '2', '0.7');
+
+--Xoa hoc phan
+delete from subject where subject_id = 'SUBJ0006';
+
+--Sua hoc phan
+update subject set name = 'Database LAB' where subject_id = 'SUBJ0006';
+
+--Giang vien vua giang day "Mathematics 1" va "Physics 1"
+SELECT lecturer_id, name, phone, email 
+FROM lecturer 
+WHERE lecturer_id IN (SELECT lecturer_id FROM class WHERE subject_id IN (
+        SELECT subject_id FROM subject WHERE name = 'Mathematics 1')
+    INTERSECT 
+        SELECT lecturer_id FROM class WHERE subject_id IN (
+        SELECT subject_id FROM subject WHERE name = 'Physics 1'
+    )
+);
+
+--Chon 2 sinh vien co diem trung binh mon Mathematics 1 nhat ki 20231
+select student.student_id, student.name,
+round ((midterm_score* (1-percentage) + endterm_score*percentage)::numeric, 2) as average_score from student join enrollment using (student_id) as c1 join subject using (subject_id) where semester
+='20231' and subject.name = 'Mathematics 1'
+order by (average_score) desc limit 2;
+
+--Tong so sinh vien que Hue 
+select count (*) as total_student from student 
+where hometown = 'Hue';
+
+--Danh sach sinh vien > 18 tuoi o lop C0000004
+select student.student_id, name from student
+inner join enroll_class on student.student_id = enroll_class.student_id where class_id = 'C0000004' and extract (year from now()) - extract(year from dob ) > 18;
+
+--Tong so giang vien truong cntt&tt
+select count (*) as total_lecture from lecturer 
+where school = 'IT';
+
+--Danh sach hoc phan co so tin <= 3 
+select subject_id, name, credit_number from subject
+where credit_number <= 3;
+
+--Danh sach sinh vien hoc Mathematics 1 20231 
+select student.student_id, student.name from student where student_id in
+(select student_id from enrollment where subject_id in
+(select subject_id from subject where subject.name = 'Mathematics 1') and semester = '20231');
+
+--Giang vien day nhieu lop nhat ky 20231
+SELECT lecturer.lecturer_id, lecturer.name, COUNT(class.class_id) AS total_class
+FROM lecturer
+JOIN class ON lecturer.lecturer_id = class.lecturer_id
+WHERE class.semester = '20231'
+GROUP BY lecturer.lecturer_id, lecturer.name
+ORDER BY total_class DESC
+LIMIT 1;
+
+--Hien thi ten lop va so luong sinh vien tuong ung theo so luong sinh vien giam
+select class.class_id, count (class.class_id) as total_student from class join enroll_class using (class_id) join student using (student_id)
+group by class.class_id order by count (class.class_id) desc; 
+
+--Sinh vien co diem mon Mathematics 1 > diem trung binh cua ca lop ki 20231
+select student_id, round ((midterm_score* (1-percentage) + endterm_score*percentage) :: numeric, 2) as final_score from subject join enrollment using (subject_id)
+where (midterm_score* (1-percentage) + endterm_score*percentage) >
+(select avg(midterm_score* (1-percentage) + endterm_score * percentage) from enrollment join subject using (subject_id)
+where subject.name = 'Mathematics 1' and semester = '20231')
+and subject.name = 'Mathematics 1' and semester = '20231';
+
+
+--Dua ra danh sach hoc phan, diem cuoi ki cao nhat, thap nhat, trung binh trong hoc ki 20231
+select subject.subject_id, subject.name as subject_name,
+round (max (percentage * endterm_score + (1 - percentage)*midterm_score):: numeric, 2) as max_score,
+round (min (percentage * endterm_score + (1 - percentage) *midterm_score):: numeric, 2) as min_score,
+round (avg(percentage * endterm_score + (1 - percentage) *midterm_score):: numeric,2) as avg_score
+from subject
+join enrollment on subject.subject_id = enrollment.subject_id where enrollment.semester = '20231'
+group by subject.subject_id, subject.name;
+
+
+--Sinh vien co nguy co bi duoi hoc (warning level = 3 ) 
+select student_id, name from student where warning_level = 3;
+
+
+--Sinh vien truot mon Mathematics 1 ky 20231 
+SELECT student_id, name 
+FROM student 
+WHERE student_id IN (
+    SELECT student_id 
+    FROM enrollment 
+    JOIN subject USING (subject_id)
+    WHERE (midterm_score < 3 OR endterm_score < 3 OR (midterm_score * (1 - percentage) + endterm_score) / 2 < 4) 
+    AND subject.name = 'Mathematics 1' 
+    AND semester = '20232'
+);
+
+--Sinh vien hoc lai mon Mathematics 1 nhieu nhat 
+SELECT s.name, e.student_id, COUNT(*) AS times_learn
+FROM enrollment e 
+JOIN student s USING (student_id)
+JOIN subject sj USING (subject_id)
+WHERE sj.name = 'Mathematics 1'
+GROUP BY s.name, e.student_id
+ORDER BY times_learn DESC
+LIMIT 1;
+
+--Danh sach mon hoc co it nhat 3 giang vien phu trach ki 20231
+SELECT subject_id, name 
+FROM subject 
+WHERE subject_id IN (
+    SELECT subject_id 
+    FROM class 
+    WHERE semester = '20231' 
+    GROUP BY subject_id 
+    HAVING COUNT(*) >= 3
+);
+
+--Danh sach lop duoc mo cho mon Mathematics 1 ki 20231
+SELECT DISTINCT class_id 
+FROM class 
+JOIN enrollment USING (subject_id)
+WHERE subject_id IN (
+    SELECT subject_id 
+    FROM subject 
+    WHERE name = 'Mathematics 1' 
+    AND class.semester = '20231'
+);
+
+--Liet ke cac lop hoc o toa D3 
+SELECT class_id, subject_id 
+FROM class 
+WHERE place LIKE '%D3%';
+
+--Dua ra danh sach sinh vien va tong so tin chi sinh vien dang ky trong ki 20231
+SELECT t1.student_id, t1.name, t2.total_credits
+FROM (SELECT student_id, name FROM student) AS t1
+JOIN (
+    SELECT student_id, SUM(credit_number) AS total_credits
+    FROM enrollment 
+    JOIN subject USING (subject_id) 
+    WHERE semester = '20231'
+    GROUP BY student_id
+) AS t2 USING (student_id);
+
+
+--Xem thoi khoa bieu cua sinh vien ‘S0000002’ trong ki 20231 
+CREATE VIEW student_schedule AS
+SELECT sj.name, c.place, c.timing, l.name AS lecturer_name
+FROM student s
+JOIN enroll_class ec ON s.student_id = ec.student_id
+JOIN class c ON ec.class_id = c.class_id
+JOIN subject sj ON c.subject_id = sj.subject_id
+JOIN lecturer l ON c.lecturer_id = l.lecturer_id
+WHERE s.student_id = 'S0000002' AND c.semester = '20231';
+
+SELECT * FROM student_schedule;
+
+--Danh sach hoc phan giang vien Le Van An phu trach trong hoc ki 20231
+create view lecturer_subject as 
+select class_id, subject_id, timing, place from class
+where lecturer_id in
+(select lecturer_id from lecturer where name = 'Le Van An') and semester = '20231';
+
+
+SELECT * FROM lecturer_subject;
+
+--Danh sach giang vien day mon SUBJ0001 trong ki 20231
+CREATE VIEW list_of_lecturer AS 
+SELECT l.lecturer_id, l.name, l.phone, l.email
+FROM lecturer l
+JOIN class c ON l.lecturer_id = c.lecturer_id
+WHERE c.semester = '20231' AND c.subject_id = 'SUBJ0001';
+
+SELECT * FROM list_of_lecturer;
+
+
+--Danh sach sinh vien theo thu tu giam dan cpa 
+CREATE VIEW chart AS
+SELECT student_id, name, cpa FROM student
+ORDER BY cpa DESC;
+
+SELECT * FROM chart;
+
+--Danh sach sinh vien lop C0000001 ki 20231
+CREATE OR REPLACE VIEW list_of_student AS 
+SELECT s.student_id, s.name 
+FROM student s 
+WHERE s.student_id IN (
+    SELECT ec.student_id  
+	FROM enroll_class ec 
+    JOIN class c USING (class_id)
+    WHERE c.semester = '20231' AND c.class_id = 'C0000001'
+);
+
+SELECT * FROM list_of_student;
+
+--Danh sach lop mo ki 20232
+create or replace view lists_of_class as 
+select distinct class_id, subject_id 
+from class c join enrollment using (subject_id) where c.semester = '20232'
+order by (class_id) desc;
+
+SELECT * FROM lists_of_class;
+
+--Danh sach sinh vien co the apply hoc bong ( cpa>3.6 va tong tin hoc trong ki 20231 > 15 tin ) 
+--do data van con it nen neu chay thi se khong co sinh vien nao, thu voi so tin chi >= 2
+select name , student_id, major, cpa from student where student_id in
+(select student_id from enrollment join subject using (subject_id)
+		where semester = '20231' group by (student_id)
+		having count (credit_number)>=2) and cpa > 3.6 order by (cpa) desc;
+
+--sinh vien lon tuoi nhat 
+SELECT student_id, name, major, cpa, 
+    (extract(year from now()) - extract(year from dob)) AS age 
+FROM student 
+WHERE (extract(year from now()) - extract(year from dob)) >= ALL(
+    SELECT extract(year from now()) - extract(year from dob) 
+    FROM student
+);
+
+--giang vien sap ve huu
+SELECT lecturer_id, name, extract(year from now()) - year AS age, school 
+FROM lecturer 
+WHERE extract(year from now()) - year >= 50;

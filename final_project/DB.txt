@@ -1,0 +1,109 @@
+CREATE SCHEMA IF NOT EXISTS eduDB;
+
+SET search_path TO eduDB;
+
+--CREATE ROLES
+CREATE ROLE student;
+CREATE ROLE lecturer;
+CREATE ROLE admin;
+ALTER ROLE admin SET search_path TO eduDB;
+ALTER ROLE student SET search_path TO eduDB;
+ALTER ROLE lecturer SET search_path TO eduDB;
+CREATE USER userstudent WITH PASSWORD '123456';
+CREATE USER userlecturer WITH PASSWORD '123456';
+GRANT student TO userstudent;
+GRANT lecturer TO userlecturer;
+
+--CREATE TABLE
+CREATE TABLE student (
+    student_id CHAR(8) PRIMARY KEY, 		-- Mã số sinh viên
+    name CHAR(100), 				-- Tên sinh viên
+    gender CHAR(10), 				-- Giới tính sinh viên
+    clazz CHAR(20), 				-- Lớp của sinh viên
+    dob DATE, 					-- Ngày tháng năm sinh của sinh viên
+    phone CHAR(10), 				-- Số điện thoại của sinh viên
+    address CHAR(100), 				-- Địa chỉ của sinh viên
+    hometown CHAR(100), 			-- Quê quán của sinh viên
+    major CHAR(10), 				-- Ngành học của sinh viên
+    cpa REAL, 					-- CPA của sinh viên
+    email CHAR(100), 				-- Email của sinh viên
+    warning_level INTEGER, 			-- Mức cảnh cáo của sinh viên
+    credit_hours_owned INTEGER,			-- Số giờ tín chỉ đã sở hữu
+    credit_number_owed INTEGER			-- Số tín chỉ nợ 
+);
+
+CREATE TABLE subject (
+    subject_id CHAR(8) PRIMARY KEY, 		-- Mã học phần
+    name CHAR(100), 				-- Tên học phần
+    credit_number INT, 				-- Số tín chỉ
+    percentage REAL, 					-- Trọng số điểm cuối kì
+    check(percentage > 0 and percentage < 1)
+);
+
+CREATE TABLE lecturer (
+    lecturer_id CHAR(8) PRIMARY KEY, 		-- Mã giảng viên
+    name CHAR(100), 				-- Tên giảng viên
+    phone CHAR(100), 				-- Số điện thoại của giảng viên
+    email CHAR(100), 				-- Email của giảng viên
+    year INTEGER, 					-- Năm sinh của giảng viên
+    gender CHAR(10), 				-- Giới tính giảng viên
+    school CHAR(10) 				-- Trường, viện giảng viên trực thuộc
+);
+
+CREATE TABLE class (
+    class_id CHAR(8) PRIMARY KEY, 		-- Mã lớp học
+    lecturer_id CHAR(8), 			-- Mã giảng viên
+    place CHAR(100), 				-- Địa điểm (lớp) học
+    timing CHAR(11), 				-- Thời gian (lớp) học
+    subject_id CHAR(8), 			-- Mã học phần
+    num_of_student INT, 				-- Số lượng sinh viên
+    max_of_student INT, 				-- Số sinh viên tối đa
+    min_of_student INT, 				-- Số sinh viên tối thiểu
+    FOREIGN KEY (subject_id) REFERENCES subject(subject_id), 
+    FOREIGN KEY (lecturer_id) REFERENCES lecturer(lecturer_id), 
+    semester CHAR(5) 					-- Kì học
+);
+
+CREATE TABLE enrollment (
+    student_id CHAR(8) REFERENCES student(student_id),	-- Mã sinh viên
+    subject_id CHAR(8) REFERENCES subject(subject_id),	-- Mã học phần
+    semester CHAR(5),						-- Học kỳ
+    midterm_score REAL,							-- Điểm giữa kỳ
+    endterm_score REAL,							-- Điểm cuối kỳ
+    final_score NUMERIC(2, 1),
+    PRIMARY KEY (student_id, subject_id, semester)
+);
+
+CREATE TABLE enroll_class (
+    student_id CHAR(8) REFERENCES student(student_id),	-- Mã sinh viên
+    class_id CHAR(8) REFERENCES class(class_id),	-- Mã lớp học
+    time_enroll DATE,					-- Thời gian đăng ký
+    PRIMARY KEY (student_id, class_id)
+);
+
+--GRANT PRIVILEDGES
+GRANT ALL ON SCHEMA edudb TO admin;
+GRANT USAGE ON SCHEMA edudb TO lecturer;
+GRANT USAGE ON SCHEMA edudb TO student;
+
+GRANT ALL ON TABLE edudb.class TO admin;
+GRANT SELECT ON TABLE edudb.class TO lecturer;
+GRANT SELECT ON TABLE edudb.class TO student;
+
+GRANT ALL ON TABLE edudb.enroll_class TO admin;
+GRANT INSERT, SELECT, DELETE, UPDATE ON TABLE edudb.enroll_class TO student;
+GRANT SELECT, TRIGGER ON TABLE edudb.enroll_class TO lecturer;
+
+GRANT INSERT, SELECT, DELETE, UPDATE ON TABLE edudb.enrollment TO student;
+GRANT SELECT, TRIGGER ON TABLE edudb.enrollment TO admin;
+
+GRANT ALL ON TABLE edudb.lecturer TO admin;
+GRANT SELECT ON TABLE edudb.lecturer TO lecturer;
+
+GRANT ALL ON TABLE edudb.student TO admin;
+GRANT SELECT ON TABLE edudb.student TO student;
+GRANT SELECT ON TABLE edudb.student TO lecturer;
+
+GRANT ALL ON TABLE edudb.subject TO admin;
+GRANT SELECT ON TABLE edudb.subject TO lecturer;
+GRANT SELECT ON TABLE edudb.subject TO student;

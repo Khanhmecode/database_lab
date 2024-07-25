@@ -1,0 +1,145 @@
+--Function,Trigger,Procedure
+--1 cap nhat so tin chi no cua sinh vien
+create or replace function update_credit_number_owed()
+returns trigger as
+$$
+declare
+    number integer;
+    credit integer := 0;
+    per real;
+begin
+    select credit_number, percentage into number, per 
+    from subject 
+    where subject_id = new.subject_id;
+    if (new.midterm_score * (1 - per) + per * new.endterm_score) < 4 
+        or new.midterm_score < 3 
+        or new.endterm_score < 4 
+    then
+        credit := number;
+    end if;
+    update student
+    set credit_number_owed = credit_number_owed + credit
+    where student_id = new.student_id;
+    return new;
+end;
+$$
+language plpgsql;
+
+
+create or replace trigger update_credit
+after update or insert
+on enrollment
+for each row
+execute procedure update_credit_number_owed();
+
+--2 cap nhat so luong sinh vien cua mot lop khi co nguoi dang ky hoặc xoa lop
+
+create or replace function update_num_of_student()
+returns trigger as
+$$
+begin
+    if old.class_id is not null then
+        update class
+        set num_of_student = num_of_student - 1
+        where class_id = old.class_id;
+    end if;
+    if new.class_id is not null then
+        update class
+        set num_of_student = num_of_student + 1
+        where class_id = new.class_id;
+    end if;
+    return new;
+end;
+$$
+language plpgsql;
+
+create or replace trigger update_student
+after insert or delete on enroll_class
+for each row
+execute procedure update_num_of_student();
+
+
+--3 thu tuc cap nhat diem tong ket cua sinh vien
+create or replace function final_grade (id_student char(10), id_subject char (10), semes char(10))
+returns real as
+$$
+declare score real;
+begin                              
+	select into score midterm_score * (1-percentage) + endterm_score * percentage
+	from enrollment join subject using (subject_id)
+	where student_id = id_student and subject_id = id_subject and semester = semes;
+	return score;
+end;
+$$
+language plpgsql;
+
+create or replace procedure update_final_grade() as
+$$
+begin
+	update enrollment set final_score = final_grade (student_id, subject_id, semester);
+end;
+$$
+language plpgsql;
+
+call update_final_grade();
+
+--4
+create or replace function s_gpa(s_id char(10), se char(10))
+returns float
+language plpgsql
+as
+$$
+declare 
+    gpa numeric(2);
+    total_credit integer;
+begin
+    select into total_credit sum(credit_number)
+    from enrollment join subject using (subject_id)
+    where student_id = s_id and semester = se;
+    select into gpa
+    sum((midterm_score * (1-percentage) + endterm_score * percentage) * credit_number) / total_credit
+    from enrollment join subject using (subject_id)
+    where student_id = s_id and semester = se;
+    return gpa / 10 * 4;
+end;
+$$
+select s_gpa('S0000001', '20231');
+
+--5
+create or replace procedure check_full_class(cla_id char(10)) as
+$$
+declare 
+    current_student integer;
+    max_student integer;
+begin
+    select into current_student num_of_student from class
+    where class_id = cla_id;
+    select into max_student max_of_student from class
+    where class_id = cla_id;
+    if current_student >= max_student then
+        raise notice 'Class is full. Please register other class';
+    end if;
+    if current_student < max_student then
+        raise notice 'You can register this class';
+    end if;
+end;
+$$
+language plpgsql;
+call check_full_class('C0000001');
+call check_full_class('C0000008');
+
+
+--Index
+select * from subject;
+do $$
+begin
+    for i in 6..1000 loop
+        INSERT INTO subject(subject_id, name, credit_number) VALUES
+        (concat('SU', i), CONCAT('Subject ', i), mod(i, 3));
+    end loop;
+end;
+$$;
+EXPLAIN ANALYZE SELECT * FROM subject WHERE credit_number >= 2;
+create index index_credit_number on subject(credit_number);
+EXPLAIN ANALYZE SELECT * FROM subject WHERE credit_number >= 2;
+
